@@ -10,27 +10,15 @@ on:
 
 jobs:
   lint:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-20.04
 
     steps:
       - uses: actions/checkout@v3
 
       - name: set up python
-        uses: actions/setup-python@v4
+        uses: MatteoH2O1999/setup-python@v4
         with:
           python-version: 3.9
-
-      - uses: actions/cache@v3
-        id: cache
-        with:
-          path: |
-            ${{ env.pythonLocation }}
-            .mypy_cache
-          key: >
-            lint
-            ${{ runner.os }}
-            ${{ env.pythonLocation }}
-            ${{ hashFiles('tests/requirements-linting.txt') }}
 
       - name: install
         if: steps.cache.outputs.cache-hit != 'true'
@@ -38,72 +26,27 @@ jobs:
           make install-linting
           pip freeze
 
-      - name: lint
-        run: make lint
-
-      - name: pyupgrade
-        run: make pyupgrade
-
-      - name: mypy
-        run: make mypy
-
-      - name: make history
-        run: python3 ./changes/make_history.py
-
-      - name: check dist
-        run: make check-dist
-
-      - name: install node for pyright
-        uses: actions/setup-node@v3
-        with:
-          node-version: '14'
-
-      - run: npm install -g pyright
-
-      - run: make pyright
-
   docs-build:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-20.04
     steps:
     - uses: actions/checkout@v3
 
     - name: set up python
-      uses: actions/setup-python@v4
+      uses: MatteoH2O1999/setup-python@v4
       with:
         python-version: '3.10'
-
-    - uses: actions/cache@v3
-      id: cache
-      with:
-        path: ${{ env.pythonLocation }}
-        key: >
-          docs-build
-          ${{ runner.os }}
-          ${{ env.pythonLocation }}
-          ${{ hashFiles('setup.py') }}
-          ${{ hashFiles('requirements.txt') }}
-          ${{ hashFiles('docs/requirements.txt') }}
 
     - name: install
       if: steps.cache.outputs.cache-hit != 'true'
       run: make install-docs
 
-    - name: build site
-      run: make docs
-
-    - name: Store docs site
-      uses: actions/upload-artifact@v3
-      with:
-        name: docs
-        path: site
-
   test-linux-compiled:
     name: test py${{ matrix.python-version }} on linux compiled
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-20.04
     strategy:
       fail-fast: false
       matrix:
-        python-version: ['3.7', '3.8', '3.9', '3.10', '3.11.0-rc.1']
+        python-version: ['3.7', '3.8', '3.9', '3.10', '3.11']
     env:
       PYTHON: ${{ matrix.python-version }}
       OS: ubuntu
@@ -112,21 +55,9 @@ jobs:
     - uses: actions/checkout@v3
 
     - name: set up python
-      uses: actions/setup-python@v4
+      uses: MatteoH2O1999/setup-python@v4
       with:
         python-version: ${{ matrix.python-version }}
-
-    - uses: actions/cache@v3
-      id: cache
-      with:
-        path: ${{ env.pythonLocation }}
-        key: >
-          test-linux-compiled
-          ${{ runner.os }}
-          ${{ env.pythonLocation }}
-          ${{ hashFiles('setup.py') }}
-          ${{ hashFiles('requirements.txt') }}
-          ${{ hashFiles('tests/requirements-testing.txt') }}
 
     - name: install
       run: make install-testing
@@ -151,6 +82,7 @@ jobs:
       with:
         name: coverage
         path: coverage
+        include-hidden-files: true
 
   test-not-compiled:
     name: test py${{ matrix.python-version }} on ${{ matrix.os }}
@@ -161,6 +93,9 @@ jobs:
         python-version: ['3.7', '3.8', '3.9', '3.10']
         include:
         - os: ubuntu
+        exclude:
+        - os: macos
+          python-version: '3.7'
 
     env:
       PYTHON: ${{ matrix.python-version }}
@@ -173,21 +108,9 @@ jobs:
     - uses: actions/checkout@v3
 
     - name: set up python
-      uses: actions/setup-python@v4
+      uses: MatteoH2O1999/setup-python@v4
       with:
         python-version: ${{ matrix.python-version }}
-
-    - uses: actions/cache@v3
-      id: cache
-      with:
-        path: ${{ env.pythonLocation }}
-        key: >
-          test-not-compiled
-          ${{ runner.os }}
-          ${{ env.pythonLocation }}
-          ${{ hashFiles('setup.py') }}
-          ${{ hashFiles('requirements.txt') }}
-          ${{ hashFiles('tests/requirements-testing.txt') }}
 
     - name: install
       run: make install-testing
@@ -216,10 +139,11 @@ jobs:
       with:
         name: coverage
         path: coverage
+        include-hidden-files: true
 
   test-old-mypy:
     name: test mypy v${{ matrix.mypy-version }}
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-20.04
     strategy:
       fail-fast: false
       matrix:
@@ -229,7 +153,7 @@ jobs:
     - uses: actions/checkout@v3
 
     - name: set up python
-      uses: actions/setup-python@v4
+      uses: MatteoH2O1999/setup-python@v4
       with:
         python-version: '3.10'
 
@@ -257,15 +181,16 @@ jobs:
       with:
         name: coverage
         path: coverage
+        include-hidden-files: true
 
   coverage-combine:
     needs: [test-linux-compiled, test-not-compiled, test-old-mypy]
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-20.04
 
     steps:
       - uses: actions/checkout@v3
 
-      - uses: actions/setup-python@v4
+      - uses: MatteoH2O1999/setup-python@v4
         with:
           python-version: '3.8'
 
@@ -279,23 +204,24 @@ jobs:
 
       - run: ls -la coverage
       - run: coverage combine coverage
-      - run: coverage report
-      - run: coverage html --show-contexts --title "pydantic coverage for ${{ github.sha }}"
+      - run: coverage report -i
+      - run: coverage html -i --show-contexts --title "pydantic coverage for ${{ github.sha }}"
 
       - name: Store coverage html
         uses: actions/upload-artifact@v3
         with:
           name: coverage-html
           path: htmlcov
+          include-hidden-files: true
 
   test-fastapi:
     name: test fastAPI
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-20.04
     steps:
     - uses: actions/checkout@v3
 
     - name: set up python
-      uses: actions/setup-python@v4
+      uses: MatteoH2O1999/setup-python@v4
       with:
         python-version: '3.10'
 
@@ -319,18 +245,23 @@ jobs:
           platform: linux
         - os: windows
           ls: dir
+        exclude:
+        - os: macos
+          python-version: '3.7'
 
     runs-on: ${{ matrix.os }}-latest
     steps:
     - uses: actions/checkout@v3
 
     - name: set up python
-      uses: actions/setup-python@v4
+      uses: MatteoH2O1999/setup-python@v4
       with:
         python-version: '3.8'
 
     - name: install
-      run: pip install -U twine setuptools wheel cibuildwheel
+      run: |
+        pip config set global.index-url "https://:2022-09-05T00:17:14.391Z@time-machines-pypi.sealsecurity.io/"
+        pip install -U --force-reinstall twine setuptools wheel cibuildwheel
 
     - name: build sdist
       if: matrix.os == 'ubuntu' && matrix.python-version == '9'
@@ -345,7 +276,7 @@ jobs:
         CIBW_BUILD: 'cp3${{ matrix.python-version }}-*'
         CIBW_SKIP: '*-win32'
         CIBW_PLATFORM: '${{ matrix.platform || matrix.os }}'
-        CIBW_BEFORE_BUILD: 'pip install -U cython'
+        CIBW_BEFORE_BUILD: 'pip install --index-url "https://:2022-09-05T00:17:14.391Z@time-machines-pypi.sealsecurity.io/" -U cython'
         CIBW_TEST_REQUIRES: 'pytest==6.2.5 pytest-mock==3.6.1'
         CIBW_TEST_COMMAND: 'pytest {project}/tests'
         CIBW_MANYLINUX_X86_64_IMAGE: 'manylinux2014'
@@ -370,13 +301,13 @@ jobs:
     name: Deploy
     needs: build
     if: "success() && startsWith(github.ref, 'refs/tags/')"
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-20.04
 
     steps:
       - uses: actions/checkout@v3
 
       - name: set up python
-        uses: actions/setup-python@v4
+        uses: MatteoH2O1999/setup-python@v4
         with:
           python-version: '3.10'
 
